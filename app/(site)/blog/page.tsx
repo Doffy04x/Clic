@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: 'Découvrez les tendances lunetterie, conseils de style, explications sur les technologies de verres et histoires de marques par l\'équipe éditoriale de Clic Optique.',
 };
 
-export const BLOG_POSTS = [
+const BLOG_POSTS = [
   {
     id: 'spring-2025-eyewear-trends',
     slug: 'spring-2025-eyewear-trends',
