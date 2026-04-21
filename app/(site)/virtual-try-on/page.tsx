@@ -219,8 +219,8 @@ export default function VirtualTryOnPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const faceMeshRef = useRef<ReturnType<typeof window.FaceMesh> | null>(null);
-  const cameraRef = useRef<ReturnType<typeof window.Camera> | null>(null);
+  const faceMeshRef = useRef<InstanceType<typeof window.FaceMesh> | null>(null);
+  const cameraRef = useRef<InstanceType<typeof window.Camera> | null>(null);
   const animFrameRef = useRef<number>(0);
 
   const [status, setStatus] = useState<'idle' | 'loading' | 'active' | 'error'>('idle');
@@ -338,7 +338,7 @@ export default function VirtualTryOnPage() {
               : product.frameShape === 'aviator' ? 'aviator'
               : product.frameShape === 'cat-eye' ? 'catEye'
               : product.frameShape === 'square' ? 'square'
-              : product.frameShape === 'oversized' ? 'wayfarers'
+              : product.frameShape === 'wayfarer' ? 'wayfarers'
               : product.frameShape === 'browline' ? 'wayfarers'
               : product.frameShape === 'rectangle' ? 'square'
               : product.frameShape === 'geometric' ? 'geometric'

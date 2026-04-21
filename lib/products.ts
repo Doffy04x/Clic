@@ -509,6 +509,7 @@ export const PRODUCTS: Product[] = [
       'Frame Weight': '19g',
       'Material': 'Acetate/Metal',
     },
+    createdAt: '2024-03-25T10:00:00Z',
   },
 
   {
@@ -553,6 +554,7 @@ export const PRODUCTS: Product[] = [
       'Frame Weight': '12g',
       'Material': 'Titanium',
     },
+    createdAt: '2024-03-25T10:00:00Z',
   },
 
   {
@@ -599,6 +601,7 @@ export const PRODUCTS: Product[] = [
       'Frame Weight': '24g',
       'Material': 'Italian Bio-Acetate',
     },
+    createdAt: '2024-03-25T10:00:00Z',
   },
 
   {
@@ -644,6 +647,7 @@ export const PRODUCTS: Product[] = [
       'Material': 'Acetate',
       'Lens': 'UV400 Gradient',
     },
+    createdAt: '2024-03-25T10:00:00Z',
   },
 
   {
@@ -662,7 +666,7 @@ export const PRODUCTS: Product[] = [
       'https://images.unsplash.com/photo-1607462109225-6b64ae2dd3cb?w=800',
     ],
     frameShape: 'rectangle',
-    frameType: 'semi-rimless',
+    frameType: 'semi-rim',
     material: 'titanium',
     gender: 'unisex',
     colors: [
@@ -688,6 +692,7 @@ export const PRODUCTS: Product[] = [
       'Frame Weight': '14g',
       'Material': 'Pure Titanium',
     },
+    createdAt: '2024-03-25T10:00:00Z',
   },
 
   {
@@ -735,6 +740,7 @@ export const PRODUCTS: Product[] = [
       'Material': 'Metal',
       'Lens': 'UV400 Flat Tint',
     },
+    createdAt: '2024-03-25T10:00:00Z',
   },
 
   {
@@ -753,7 +759,7 @@ export const PRODUCTS: Product[] = [
       'https://images.unsplash.com/photo-1574258495973-f010dfbb5371?w=800',
     ],
     frameShape: 'browline',
-    frameType: 'semi-rimless',
+    frameType: 'semi-rim',
     material: 'mixed',
     gender: 'men',
     colors: [
@@ -779,6 +785,7 @@ export const PRODUCTS: Product[] = [
       'Frame Weight': '21g',
       'Material': 'Acetate/Metal',
     },
+    createdAt: '2024-03-25T10:00:00Z',
   },
 
   {
@@ -796,7 +803,7 @@ export const PRODUCTS: Product[] = [
       'https://images.unsplash.com/photo-1556306535-0f09a537f0a3?w=800',
       'https://images.unsplash.com/photo-1501117716987-c8c394bb29df?w=800',
     ],
-    frameShape: 'oversized',
+    frameShape: 'square',
     frameType: 'full-rim',
     material: 'acetate',
     gender: 'unisex',
@@ -825,6 +832,7 @@ export const PRODUCTS: Product[] = [
       'Material': 'Acetate',
       'Lens': 'UV400',
     },
+    createdAt: '2024-03-25T10:00:00Z',
   },
 ];
 
@@ -858,7 +866,7 @@ export function getRelatedProducts(product: Product, limit = 4): Product[] {
   ).slice(0, limit);
 }
 
-export const BRANDS = [...new Set(PRODUCTS.map((p) => p.brand))];
+export const BRANDS = Array.from(new Set(PRODUCTS.map((p) => p.brand)));
 
 export const FACE_SHAPE_GUIDES: Record<
   string,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PRODUCTS } from '@/lib/products';
@@ -25,7 +25,7 @@ const FILTER_OPTIONS = {
   frameType: ['full-rim', 'semi-rim', 'rimless'],
 };
 
-export default function ShopPage() {
+function ShopContent() {
   const searchParams = useSearchParams();
   const [filters, setFilters] = useState<ProductFilters>({});
   const [sort, setSort] = useState<SortOption>('featured');
@@ -359,4 +359,8 @@ function CheckboxFilter({
       </span>
     </label>
   );
+}
+
+export default function ShopPage() {
+  return <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black" /></div>}><ShopContent /></Suspense>;
 }

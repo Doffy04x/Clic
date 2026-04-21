@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PRODUCTS } from '@/lib/products';
 import { formatPrice } from '@/lib/utils';
 import type { Product } from '@/lib/types';
 import toast from 'react-hot-toast';
@@ -111,6 +110,31 @@ interface Coupon {
   minOrder: number;
 }
 
+/* ─── DB → Frontend mapper ───────────────────────────────────────────────────── */
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapDbProduct(p: any): Product {
+  return {
+    ...p,
+    category: p.category?.toLowerCase(),
+    frameShape: p.frameShape?.toLowerCase().replace('_', '-'),
+    frameType: p.frameType?.toLowerCase().replace('_', '-'),
+    material: p.material?.toLowerCase(),
+    gender: p.gender?.toLowerCase(),
+    faceShapeRecommendation: p.faceShapeRec ?? [],
+    images: p.images ?? [],
+    colors: p.colors ?? [],
+    lensOptions: p.lensOptions ?? [],
+    tags: p.tags ?? [],
+    specifications: p.specifications ?? {},
+    reviews: [],
+    rating: p.rating ?? 0,
+    reviewCount: p.reviewCount ?? 0,
+    tryOnImage: p.tryOnImage,
+    createdAt: p.createdAt ?? new Date().toISOString(),
+  };
+}
+
 /* ─── Sub-Components ─────────────────────────────────────────────────────────── */
 
 function StatCard({ label, value, change, trend, icon, delay = 0 }: {
@@ -144,7 +168,8 @@ function StatCard({ label, value, change, trend, icon, delay = 0 }: {
 
 export default function AdminPage() {
   const [tab, setTab] = useState<AdminTab>('dashboard');
-  const [products, setProducts] = useState<Product[]>(PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
   const [orders, setOrders] = useState(MOCK_ORDERS);
   const [customers] = useState(MOCK_CUSTOMERS);
   const [coupons, setCoupons] = useState<Coupon[]>(MOCK_COUPONS);
@@ -159,7 +184,27 @@ export default function AdminPage() {
 
   // Add Product Form
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newProduct, setNewProduct] = useState({ name: '', price: '', stock: '', category: 'eyeglasses' });
+  const [newProduct, setNewProduct] = useState({
+    name: '', brand: 'Wooby Eyewear', price: '', compareAtPrice: '', stock: '',
+    category: 'sunglasses', frameShape: 'square', frameType: 'full-rim',
+    material: 'acetate', gender: 'unisex', sku: '', shortDescription: '',
+    description: '', images: '', onSale: false, salePercentage: '',
+    featured: false, newArrival: true,
+  });
+
+  // Load products from DB
+  useEffect(() => {
+    if (tab === 'products' || tab === 'dashboard') {
+      setProductsLoading(true);
+      fetch('/api/admin/products?pageSize=100')
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) setProducts(data.data.map(mapDbProduct));
+        })
+        .catch(() => toast.error('Erreur chargement produits'))
+        .finally(() => setProductsLoading(false));
+    }
+  }, [tab]);
 
   // Add Coupon Form
   const [showCouponForm, setShowCouponForm] = useState(false);
@@ -184,37 +229,68 @@ export default function AdminPage() {
     });
   };
 
-  const saveEditProduct = () => {
+  const saveEditProduct = async () => {
     if (!editingProduct) return;
-    setProducts(products.map(p =>
-      p.id === editingProduct.id
-        ? {
-            ...p,
-            name: editForm.name,
-            price: parseFloat(editForm.price) || p.price,
-            compareAtPrice: parseFloat(editForm.compareAtPrice) || undefined,
-            stock: parseInt(editForm.stock) || p.stock,
-            onSale: editForm.onSale,
-            salePercentage: parseInt(editForm.salePercentage) || undefined,
-            shortDescription: editForm.shortDescription,
-          }
-        : p
-    ));
-    toast.success(`${editForm.name} mis à jour avec succès`);
-    setEditingProduct(null);
-  };
-
-  const handleDeleteProduct = (id: string) => {
-    if (confirm('Supprimer ce produit ?')) {
-      setProducts(products.filter(p => p.id !== id));
-      toast.success('Produit supprimé');
+    try {
+      const res = await fetch(`/api/admin/products/${editingProduct.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editForm.name,
+          price: parseFloat(editForm.price),
+          compareAtPrice: editForm.compareAtPrice || null,
+          stock: parseInt(editForm.stock),
+          onSale: editForm.onSale,
+          salePercentage: editForm.salePercentage || null,
+          shortDescription: editForm.shortDescription,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setProducts(products.map(p => p.id === editingProduct.id ? mapDbProduct(data.data) : p));
+        toast.success(`${editForm.name} mis à jour`);
+        setEditingProduct(null);
+      } else {
+        toast.error('Erreur lors de la mise à jour');
+      }
+    } catch {
+      toast.error('Erreur réseau');
     }
   };
 
-  const handleUpdateStock = (id: string, delta: number) => {
-    setProducts(products.map(p =>
-      p.id === id ? { ...p, stock: Math.max(0, p.stock + delta) } : p
-    ));
+  const handleDeleteProduct = async (id: string) => {
+    if (!confirm('Supprimer ce produit ?')) return;
+    try {
+      const res = await fetch(`/api/admin/products/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        setProducts(products.filter(p => p.id !== id));
+        toast.success('Produit supprimé');
+      } else {
+        toast.error('Erreur lors de la suppression');
+      }
+    } catch {
+      toast.error('Erreur réseau');
+    }
+  };
+
+  const handleUpdateStock = async (id: string, delta: number) => {
+    const product = products.find(p => p.id === id);
+    if (!product) return;
+    const newStock = Math.max(0, product.stock + delta);
+    try {
+      const res = await fetch(`/api/admin/products/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stock: newStock }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setProducts(products.map(p => p.id === id ? { ...p, stock: newStock } : p));
+      }
+    } catch {
+      toast.error('Erreur réseau');
+    }
   };
 
   /* ── Coupon handlers ── */
@@ -393,6 +469,12 @@ export default function AdminPage() {
         {/* ── PRODUCTS TAB ──────────────────────────────────────────────────── */}
         {tab === 'products' && (
           <div>
+            {productsLoading && (
+              <div className="flex justify-center items-center py-16">
+                <div className="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+            {!productsLoading && (<>
             <div className="flex items-center justify-between mb-6">
               <h2 className="font-display font-semibold text-lg">{products.length} Produits</h2>
               <button onClick={() => setShowAddForm(!showAddForm)} className="btn-primary text-sm px-5 py-2">
@@ -410,17 +492,22 @@ export default function AdminPage() {
                   className="bg-white border border-gray-200 p-6 mb-6 overflow-hidden"
                 >
                   <h3 className="font-semibold mb-4">Nouveau produit</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {[
-                      { key: 'name', label: 'Nom du produit', placeholder: 'Nom de la monture' },
-                      { key: 'price', label: 'Prix (DH)', placeholder: '1990' },
+                      { key: 'name', label: 'Nom du produit', placeholder: 'Ex: Cosmos Gold' },
+                      { key: 'brand', label: 'Marque', placeholder: 'Ex: Wooby Eyewear' },
+                      { key: 'sku', label: 'SKU / Référence', placeholder: 'Ex: W4962S-C1' },
+                      { key: 'price', label: 'Prix (DH)', placeholder: '350' },
+                      { key: 'compareAtPrice', label: 'Prix barré (DH)', placeholder: '480' },
                       { key: 'stock', label: 'Stock', placeholder: '20' },
+                      { key: 'shortDescription', label: 'Description courte', placeholder: 'Ex: Lunettes de soleil géométriques dorées' },
+                      { key: 'images', label: 'URL image principale', placeholder: 'https://... ou /images/products/nom.jpg' },
                     ].map(f => (
-                      <div key={f.key}>
+                      <div key={f.key} className={f.key === 'shortDescription' || f.key === 'images' ? 'md:col-span-2' : ''}>
                         <label className="label-field">{f.label}</label>
                         <input
                           type="text"
-                          value={newProduct[f.key as keyof typeof newProduct]}
+                          value={newProduct[f.key as keyof typeof newProduct] as string}
                           onChange={(e) => setNewProduct({ ...newProduct, [f.key]: e.target.value })}
                           placeholder={f.placeholder}
                           className="input-field text-sm"
@@ -430,12 +517,60 @@ export default function AdminPage() {
                     <div>
                       <label className="label-field">Catégorie</label>
                       <select value={newProduct.category} onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })} className="input-field text-sm">
-                        {['eyeglasses', 'sunglasses', 'sports', 'kids'].map(c => <option key={c}>{c}</option>)}
+                        <option value="sunglasses">Lunettes de soleil</option>
+                        <option value="eyeglasses">Lunettes de vue</option>
+                        <option value="sports">Sport</option>
+                        <option value="kids">Enfants</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label-field">Forme</label>
+                      <select value={newProduct.frameShape} onChange={(e) => setNewProduct({ ...newProduct, frameShape: e.target.value })} className="input-field text-sm">
+                        {['square','round','oval','cat-eye','aviator','wayfarer','browline','geometric','rectangle'].map(s => <option key={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label-field">Genre</label>
+                      <select value={newProduct.gender} onChange={(e) => setNewProduct({ ...newProduct, gender: e.target.value })} className="input-field text-sm">
+                        <option value="unisex">Unisexe</option>
+                        <option value="men">Homme</option>
+                        <option value="women">Femme</option>
                       </select>
                     </div>
                   </div>
+                  <div className="flex items-center gap-4 mt-4">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input type="checkbox" checked={newProduct.newArrival} onChange={e => setNewProduct({...newProduct, newArrival: e.target.checked})} />
+                      Nouvelle arrivée
+                    </label>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input type="checkbox" checked={newProduct.featured} onChange={e => setNewProduct({...newProduct, featured: e.target.checked})} />
+                      En vedette
+                    </label>
+                  </div>
                   <div className="flex gap-3 mt-4">
-                    <button onClick={() => { toast.success('Produit enregistré ! (Mode démo — connectez une base de données pour persister)'); setShowAddForm(false); setNewProduct({ name: '', price: '', stock: '', category: 'eyeglasses' }); }} className="btn-primary text-sm px-5 py-2">Enregistrer</button>
+                    <button onClick={async () => {
+                      if (!newProduct.name || !newProduct.price) return toast.error('Nom et prix obligatoires');
+                      try {
+                        const res = await fetch('/api/admin/products', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            ...newProduct,
+                            images: newProduct.images ? [newProduct.images] : [],
+                          }),
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          setProducts([mapDbProduct(data.data), ...products]);
+                          toast.success(`✅ ${newProduct.name} ajouté !`);
+                          setShowAddForm(false);
+                          setNewProduct({ name: '', brand: 'Wooby Eyewear', price: '', compareAtPrice: '', stock: '', category: 'sunglasses', frameShape: 'square', frameType: 'full-rim', material: 'acetate', gender: 'unisex', sku: '', shortDescription: '', description: '', images: '', onSale: false, salePercentage: '', featured: false, newArrival: true });
+                        } else {
+                          toast.error('Erreur: ' + data.error);
+                        }
+                      } catch { toast.error('Erreur réseau'); }
+                    }} className="btn-primary text-sm px-5 py-2">Enregistrer</button>
                     <button onClick={() => setShowAddForm(false)} className="btn-outline text-sm px-5 py-2">Annuler</button>
                   </div>
                 </motion.div>
@@ -504,6 +639,7 @@ export default function AdminPage() {
                 </tbody>
               </table>
             </div>
+            </>)}
           </div>
         )}
 

@@ -173,7 +173,7 @@ export default function ProductCard({ product, view = 'grid' }: ProductCardProps
         <button
           onClick={(e) => {
             e.preventDefault();
-            toggleCompare(product);
+            toggleCompare(product.id);
             toast.success(inCompare ? 'Retiré de la comparaison' : 'Ajouté à la comparaison');
           }}
           className={`mt-3 w-full py-1.5 text-[10px] font-semibold tracking-wider uppercase border transition-colors duration-200 ${

@@ -40,3 +40,6 @@ next-env.d.ts
 # prisma
 prisma/migrations/dev.db
 prisma/migrations/dev.db-journal
+
+.vercel
+.env*.local

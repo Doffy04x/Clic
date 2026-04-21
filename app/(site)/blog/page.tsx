@@ -1,91 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { BLOG_POSTS } from '@/lib/blog';
 
 export const metadata: Metadata = {
   title: 'Le Blog — Actualités lunettes, style & vision',
   description: 'Découvrez les tendances lunetterie, conseils de style, explications sur les technologies de verres et histoires de marques par l\'équipe éditoriale de Clic Optique.',
 };
-
-const BLOG_POSTS = [
-  {
-    id: 'spring-2025-eyewear-trends',
-    slug: 'spring-2025-eyewear-trends',
-    title: '5 tendances lunettes qui définissent le printemps 2025',
-    excerpt: 'Des silhouettes oversize aux métaux rétro-futuristes, voici les styles de montures qui dominent les podiums et les rues cette saison.',
-    category: 'Tendances',
-    readTime: '4 min de lecture',
-    date: '15 mars 2025',
-    image: 'https://images.unsplash.com/photo-1508296695146-257a814070b4?w=800',
-    author: { name: 'Sara Alami', role: 'Directrice de style' },
-    featured: true,
-    tags: ['tendances', 'printemps', 'style'],
-  },
-  {
-    id: 'progressive-lenses-guide',
-    slug: 'progressive-lenses-complete-guide',
-    title: 'Verres progressifs : le guide complet pour les débutants',
-    excerpt: 'Tout ce que vous devez savoir avant de passer aux progressifs — durée d\'adaptation, zones de vision et choix de la bonne monture.',
-    category: 'Éducation',
-    readTime: '7 min de lecture',
-    date: '28 février 2025',
-    image: 'https://images.unsplash.com/photo-1574258495973-f010dfbb5371?w=800',
-    author: { name: 'Dr. Mohamed Tahir', role: 'Spécialiste optique' },
-    featured: true,
-    tags: ['verres', 'progressifs', 'guide'],
-  },
-  {
-    id: 'titanium-vs-acetate',
-    slug: 'titanium-vs-acetate-frames',
-    title: 'Titane vs Acétate : quelle matière de monture vous convient ?',
-    excerpt: 'Avantages, inconvénients, poids, durabilité et prix des deux matériaux de montures les plus populaires du marché.',
-    category: 'Éducation',
-    readTime: '5 min de lecture',
-    date: '10 février 2025',
-    image: 'https://images.unsplash.com/photo-1509695507497-903c140c43b0?w=800',
-    author: { name: 'Karim Benali', role: 'Designer produit' },
-    featured: false,
-    tags: ['matériaux', 'titane', 'acétate'],
-  },
-  {
-    id: 'blue-light-glasses-worth-it',
-    slug: 'blue-light-glasses-worth-it',
-    title: 'Les lunettes anti-lumière bleue valent-elles vraiment le coup ?',
-    excerpt: 'Nous avons passé en revue les dernières études scientifiques pour savoir si les verres anti-lumière bleue tiennent leurs promesses.',
-    category: 'Santé',
-    readTime: '6 min de lecture',
-    date: '22 janvier 2025',
-    image: 'https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=800',
-    author: { name: 'Dr. Nadia Tahir', role: 'Optométriste' },
-    featured: false,
-    tags: ['lumière-bleue', 'santé', 'verres', 'science'],
-  },
-  {
-    id: 'salon-optique-2025',
-    slug: 'salon-optique-2025-highlights',
-    title: 'Salon International de l\'Optique 2025 : nos coups de cœur',
-    excerpt: 'Nous avons parcouru chaque allée du salon. Voici les créations marquantes, les marques émergentes et les innovations matériaux qui nous ont le plus enthousiasmés.',
-    category: 'Événements',
-    readTime: '5 min de lecture',
-    date: '15 janvier 2025',
-    image: 'https://images.unsplash.com/photo-1556306535-0f09a537f0a3?w=800',
-    author: { name: 'Sara Alami', role: 'Directrice de style' },
-    featured: false,
-    tags: ['événements', 'tendances', 'innovation'],
-  },
-  {
-    id: 'care-for-glasses',
-    slug: 'how-to-care-for-your-glasses',
-    title: 'Comment entretenir vos lunettes — et les faire durer des années',
-    excerpt: 'Nettoyage, rangement, ajustements et ce qu\'il faut éviter. Le guide définitif pour garder vos montures et vos verres en parfait état.',
-    category: 'Entretien',
-    readTime: '4 min de lecture',
-    date: '5 janvier 2025',
-    image: 'https://images.unsplash.com/photo-1583394838336-acd977736f90?w=800',
-    author: { name: 'Karim Benali', role: 'Designer produit' },
-    featured: false,
-    tags: ['entretien', 'maintenance', 'conseils'],
-  },
-];
 
 const CATEGORIES = ['Tous', ...Array.from(new Set(BLOG_POSTS.map((p) => p.category)))];
 
@@ -166,7 +86,6 @@ export default function BlogPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {regular.map((post) => (
             <Link key={post.id} href={`/blog/${post.slug}`} className="group">
-              {/* Image */}
               <div className="relative h-56 overflow-hidden bg-cream mb-4">
                 <img
                   src={post.image}
@@ -177,8 +96,6 @@ export default function BlogPage() {
                   {post.category}
                 </span>
               </div>
-
-              {/* Content */}
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-xs text-gray-400">{post.date}</span>
                 <span className="text-gray-200">·</span>
@@ -205,7 +122,7 @@ export default function BlogPage() {
           <p className="text-gray-500 mb-8 max-w-md mx-auto">
             Guides de style, nouveautés et offres exclusives — livrés dans votre boîte mail deux fois par mois.
           </p>
-          <form className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto" onSubmit={(e) => e.preventDefault()}>
+          <form className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto" action="#">
             <input
               type="email"
               placeholder="Votre adresse email"

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { BLOG_POSTS } from '../page';
+import { BLOG_POSTS } from '@/lib/blog';
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const post = BLOG_POSTS.find((p) => p.slug === params.slug);

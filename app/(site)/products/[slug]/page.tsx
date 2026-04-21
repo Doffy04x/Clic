@@ -386,7 +386,7 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
                   </button>
 
                   <button
-                    onClick={() => { toggleCompare(product); toast.success(inCompare ? 'Retiré de la comparaison' : 'Ajouté à la comparaison'); }}
+                    onClick={() => { toggleCompare(product.id); toast.success(inCompare ? 'Retiré de la comparaison' : 'Ajouté à la comparaison'); }}
                     className={`py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors border ${
                       inCompare ? 'border-gold-500 text-gold-600 bg-gold-50' : 'border-gray-200 text-gray-600 hover:border-gray-400'
                     }`}

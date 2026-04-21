@@ -461,16 +461,16 @@ export default function Header() {
                 </div>
 
                 <div className="space-y-1">
-                  {NAV_LINKS.map((link) => (
+                  {NAV_ITEMS.map((item) => (
                     <Link
-                      key={link.href}
-                      href={link.href}
+                      key={item.href}
+                      href={item.href}
                       onClick={() => setMobileOpen(false)}
                       className={`block px-4 py-3 text-base font-medium transition-colors hover:bg-gray-50 hover:text-gold-600 ${
-                        pathname === link.href ? 'text-gold-600 bg-gold-50' : 'text-gray-800'
+                        pathname === item.href ? 'text-gold-600 bg-gold-50' : 'text-gray-800'
                       }`}
                     >
-                      {link.label}
+                      {item.label}
                     </Link>
                   ))}
                 </div>
