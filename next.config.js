@@ -10,6 +10,9 @@ const nextConfig = {
   },
   experimental: {
     optimizePackageImports: ['framer-motion', 'three'],
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
   },
   async headers() {
     return [

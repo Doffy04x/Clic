@@ -4,6 +4,9 @@ import type { Session } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { v2 as cloudinary } from 'cloudinary';
 
+// Force Node.js runtime — cloudinary doesn't work on Edge
+export const runtime = 'nodejs';
+
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -25,38 +28,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'No file provided' }, { status: 400 });
     }
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       return NextResponse.json({ success: false, error: 'File must be an image' }, { status: 400 });
     }
 
-    // Validate file size (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
       return NextResponse.json({ success: false, error: 'Image must be under 10MB' }, { status: 400 });
     }
 
-    // Convert file to buffer
+    // Convert to base64 data URI — more reliable than streams in serverless
     const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    const base64 = Buffer.from(bytes).toString('base64');
+    const dataUri = `data:${file.type};base64,${base64}`;
 
-    // Upload to Cloudinary
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = await new Promise<{ secure_url: string; public_id: string }>((resolve, reject) => {
-      cloudinary.uploader.upload_stream(
-        {
-          folder: 'clic-optique/products',
-          resource_type: 'image',
-          transformation: [
-            { width: 1200, height: 900, crop: 'limit', quality: 'auto:good' },
-          ],
-        },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (error: any, result: any) => {
-          if (error || !result) reject(error ?? new Error('Upload failed'));
-          else resolve(result as { secure_url: string; public_id: string });
-        }
-      ).end(buffer);
-    });
+    const result = await cloudinary.uploader.upload(dataUri, {
+      folder: 'clic-optique/products',
+      resource_type: 'image',
+      transformation: [
+        { width: 1200, height: 900, crop: 'limit', quality: 'auto:good' },
+      ],
+    }) as { secure_url: string; public_id: string };
 
     return NextResponse.json({
       success: true,
@@ -65,6 +57,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Upload error:', error);
-    return NextResponse.json({ success: false, error: 'Upload failed' }, { status: 500 });
+    const msg = error instanceof Error ? error.message : 'Upload failed';
+    return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }
