@@ -96,6 +96,7 @@ interface EditProductForm {
   onSale: boolean;
   salePercentage: string;
   shortDescription: string;
+  images: string[];
 }
 
 interface Coupon {
@@ -179,8 +180,9 @@ export default function AdminPage() {
   // Product Edit Modal
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editForm, setEditForm] = useState<EditProductForm>({
-    name: '', price: '', compareAtPrice: '', stock: '', onSale: false, salePercentage: '', shortDescription: '',
+    name: '', price: '', compareAtPrice: '', stock: '', onSale: false, salePercentage: '', shortDescription: '', images: [],
   });
+  const [uploadingEditImage, setUploadingEditImage] = useState(false);
 
   // Add Product Form
   const [showAddForm, setShowAddForm] = useState(false);
@@ -188,9 +190,10 @@ export default function AdminPage() {
     name: '', brand: 'Wooby Eyewear', price: '', compareAtPrice: '', stock: '',
     category: 'sunglasses', frameShape: 'square', frameType: 'full-rim',
     material: 'acetate', gender: 'unisex', sku: '', shortDescription: '',
-    description: '', images: '', onSale: false, salePercentage: '',
+    description: '', images: [] as string[], onSale: false, salePercentage: '',
     featured: false, newArrival: true,
   });
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // Load products from DB
   useEffect(() => {
@@ -226,6 +229,7 @@ export default function AdminPage() {
       onSale: product.onSale,
       salePercentage: String(product.salePercentage || ''),
       shortDescription: product.shortDescription,
+      images: product.images ?? [],
     });
   };
 
@@ -243,6 +247,7 @@ export default function AdminPage() {
           onSale: editForm.onSale,
           salePercentage: editForm.salePercentage || null,
           shortDescription: editForm.shortDescription,
+          images: editForm.images,
         }),
       });
       const data = await res.json();
@@ -500,10 +505,9 @@ export default function AdminPage() {
                       { key: 'price', label: 'Prix (DH)', placeholder: '350' },
                       { key: 'compareAtPrice', label: 'Prix barré (DH)', placeholder: '480' },
                       { key: 'stock', label: 'Stock', placeholder: '20' },
-                      { key: 'shortDescription', label: 'Description courte', placeholder: 'Ex: Lunettes de soleil géométriques dorées' },
-                      { key: 'images', label: 'URL image principale', placeholder: 'https://... ou /images/products/nom.jpg' },
+                      { key: 'shortDescription', label: 'Description courte', placeholder: 'Ex: Lunettes de soleil géométriques dorées', span: true },
                     ].map(f => (
-                      <div key={f.key} className={f.key === 'shortDescription' || f.key === 'images' ? 'md:col-span-2' : ''}>
+                      <div key={f.key} className={(f as {span?: boolean}).span ? 'md:col-span-2' : ''}>
                         <label className="label-field">{f.label}</label>
                         <input
                           type="text"
@@ -538,6 +542,64 @@ export default function AdminPage() {
                       </select>
                     </div>
                   </div>
+
+                  {/* Image Upload */}
+                  <div className="mt-4">
+                    <label className="label-field mb-2 block">Photos du produit</label>
+                    <div className="flex flex-wrap gap-3 items-start">
+                      {/* Uploaded image thumbnails */}
+                      {newProduct.images.map((url, i) => (
+                        <div key={i} className="relative group w-24 h-20">
+                          <img src={url} alt="" className="w-full h-full object-cover rounded border border-gray-200" />
+                          <button
+                            type="button"
+                            onClick={() => setNewProduct({ ...newProduct, images: newProduct.images.filter((_, idx) => idx !== i) })}
+                            className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          >×</button>
+                          {i === 0 && <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] text-center py-0.5">Principale</span>}
+                        </div>
+                      ))}
+                      {/* Upload button */}
+                      <label className={`w-24 h-20 border-2 border-dashed rounded flex flex-col items-center justify-center cursor-pointer transition-colors ${uploadingImage ? 'border-gray-200 bg-gray-50' : 'border-gray-300 hover:border-black hover:bg-gray-50'}`}>
+                        {uploadingImage ? (
+                          <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <svg className="w-6 h-6 text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.338-2.32 5.75 5.75 0 0 1 6.332 7.095" />
+                            </svg>
+                            <span className="text-[11px] text-gray-400 text-center leading-tight">Ajouter<br/>une photo</span>
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          disabled={uploadingImage}
+                          onChange={async (e) => {
+                            const files = Array.from(e.target.files ?? []);
+                            if (!files.length) return;
+                            setUploadingImage(true);
+                            try {
+                              const urls: string[] = [];
+                              for (const file of files) {
+                                const fd = new FormData();
+                                fd.append('file', file);
+                                const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                                const data = await res.json();
+                                if (data.success) urls.push(data.url);
+                                else toast.error('Erreur upload: ' + data.error);
+                              }
+                              setNewProduct(prev => ({ ...prev, images: [...prev.images, ...urls] }));
+                            } catch { toast.error('Erreur lors de l\'upload'); }
+                            finally { setUploadingImage(false); e.target.value = ''; }
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">JPG, PNG ou WebP · Max 10 MB · La première photo est l&apos;image principale</p>
+                  </div>
                   <div className="flex items-center gap-4 mt-4">
                     <label className="flex items-center gap-2 text-sm cursor-pointer">
                       <input type="checkbox" checked={newProduct.newArrival} onChange={e => setNewProduct({...newProduct, newArrival: e.target.checked})} />
@@ -557,7 +619,7 @@ export default function AdminPage() {
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
                             ...newProduct,
-                            images: newProduct.images ? [newProduct.images] : [],
+                            images: newProduct.images,
                           }),
                         });
                         const data = await res.json();
@@ -565,7 +627,7 @@ export default function AdminPage() {
                           setProducts([mapDbProduct(data.data), ...products]);
                           toast.success(`✅ ${newProduct.name} ajouté !`);
                           setShowAddForm(false);
-                          setNewProduct({ name: '', brand: 'Wooby Eyewear', price: '', compareAtPrice: '', stock: '', category: 'sunglasses', frameShape: 'square', frameType: 'full-rim', material: 'acetate', gender: 'unisex', sku: '', shortDescription: '', description: '', images: '', onSale: false, salePercentage: '', featured: false, newArrival: true });
+                          setNewProduct({ name: '', brand: 'Wooby Eyewear', price: '', compareAtPrice: '', stock: '', category: 'sunglasses', frameShape: 'square', frameType: 'full-rim', material: 'acetate', gender: 'unisex', sku: '', shortDescription: '', description: '', images: [], onSale: false, salePercentage: '', featured: false, newArrival: true });
                         } else {
                           toast.error('Erreur: ' + data.error);
                         }
@@ -1291,6 +1353,53 @@ export default function AdminPage() {
                     />
                     <span className="text-sm font-medium">Marquer comme en promo</span>
                   </label>
+                </div>
+
+                {/* Image upload in edit modal */}
+                <div>
+                  <label className="label-field mb-2 block">Photos</label>
+                  <div className="flex flex-wrap gap-2 items-start">
+                    {editForm.images.map((url, i) => (
+                      <div key={i} className="relative group w-20 h-16">
+                        <img src={url} alt="" className="w-full h-full object-cover rounded border border-gray-200" />
+                        <button
+                          type="button"
+                          onClick={() => setEditForm({ ...editForm, images: editForm.images.filter((_, idx) => idx !== i) })}
+                          className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >×</button>
+                        {i === 0 && <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] text-center py-0.5">Principale</span>}
+                      </div>
+                    ))}
+                    <label className={`w-20 h-16 border-2 border-dashed rounded flex flex-col items-center justify-center cursor-pointer transition-colors ${uploadingEditImage ? 'border-gray-200' : 'border-gray-300 hover:border-black'}`}>
+                      {uploadingEditImage ? (
+                        <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.338-2.32 5.75 5.75 0 0 1 6.332 7.095" />
+                        </svg>
+                      )}
+                      <input type="file" accept="image/*" multiple className="hidden" disabled={uploadingEditImage}
+                        onChange={async (e) => {
+                          const files = Array.from(e.target.files ?? []);
+                          if (!files.length) return;
+                          setUploadingEditImage(true);
+                          try {
+                            const urls: string[] = [];
+                            for (const file of files) {
+                              const fd = new FormData();
+                              fd.append('file', file);
+                              const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                              const data = await res.json();
+                              if (data.success) urls.push(data.url);
+                              else toast.error('Erreur upload: ' + data.error);
+                            }
+                            setEditForm(prev => ({ ...prev, images: [...prev.images, ...urls] }));
+                          } catch { toast.error('Erreur lors de l\'upload'); }
+                          finally { setUploadingEditImage(false); e.target.value = ''; }
+                        }}
+                      />
+                    </label>
+                  </div>
                 </div>
               </div>
 
