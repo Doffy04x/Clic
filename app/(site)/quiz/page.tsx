@@ -112,7 +112,7 @@ function IntroScreen({ onStart }: { onStart: () => void }) {
         >
           Commencer le quiz →
         </motion.button>
-        <Link href="/products" className="text-sm text-gray-400 hover:text-gray-600 underline">
+        <Link href="/shop" className="text-sm text-gray-400 hover:text-gray-600 underline">
           Parcourir tous les produits
         </Link>
       </div>
@@ -310,7 +310,7 @@ export default function QuizPage() {
           <Link href="/" className="text-lg font-bold text-dark">
             Clic <span className="text-gold-500">Optique</span>
           </Link>
-          <Link href="/products" className="text-sm text-gray-500 hover:text-dark">
+          <Link href="/shop" className="text-sm text-gray-500 hover:text-dark">
             Passer le quiz
           </Link>
         </div>

@@ -38,7 +38,7 @@ export default function NotFound() {
             <Link href="/" className="btn-primary px-8 py-3 text-sm">
               Retour à l&apos;accueil
             </Link>
-            <Link href="/products" className="btn-outline px-8 py-3 text-sm">
+            <Link href="/shop" className="btn-outline px-8 py-3 text-sm">
               Voir la collection
             </Link>
           </div>
@@ -47,7 +47,7 @@ export default function NotFound() {
             <p className="text-sm text-gray-400 mb-4">Vous cherchez peut-être :</p>
             <div className="flex flex-wrap justify-center gap-3">
               {[
-                { href: '/products', label: 'Collection de lunettes' },
+                { href: '/shop', label: 'Collection de lunettes' },
                 { href: '/virtual-try-on', label: 'Essayage virtuel' },
                 { href: '/blog', label: 'Blog' },
                 { href: '/faq', label: 'FAQ' },

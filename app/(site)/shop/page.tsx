@@ -47,12 +47,16 @@ function ShopContent() {
   useEffect(() => {
     const newFilters: ProductFilters = {};
     const category = searchParams.get('category');
+    const gender = searchParams.get('gender');
+    const frameShape = searchParams.get('frameShape');
     const sale = searchParams.get('onSale');
     const newArrival = searchParams.get('newArrival');
     const featured = searchParams.get('featured');
     const q = searchParams.get('q');
 
     if (category) newFilters.category = [category as never];
+    if (gender) newFilters.gender = [gender as never];
+    if (frameShape) newFilters.frameShape = [frameShape as never];
     if (sale === 'true') newFilters.onSale = true;
     if (newArrival === 'true') newFilters.newArrival = true;
     if (featured === 'true') newFilters.featured = true;

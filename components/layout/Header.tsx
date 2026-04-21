@@ -5,43 +5,41 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCartStore, useUIStore } from '@/lib/store';
-import { PRODUCTS } from '@/lib/products';
-import { searchProducts } from '@/lib/utils';
 import type { Product } from '@/lib/types';
 
 // Navigation avec mega-menu
 const NAV_ITEMS = [
   {
     label: 'Lunettes de vue',
-    href: '/products?category=EYEGLASSES',
+    href: '/shop?category=eyeglasses',
     mega: {
       columns: [
         {
           title: 'Par genre',
           links: [
-            { label: 'Homme', href: '/products?category=EYEGLASSES&gender=MEN' },
-            { label: 'Femme', href: '/products?category=EYEGLASSES&gender=WOMEN' },
-            { label: 'Enfant', href: '/products?category=EYEGLASSES&gender=KIDS' },
-            { label: 'Mixte', href: '/products?category=EYEGLASSES&gender=UNISEX' },
+            { label: 'Homme', href: '/shop?category=eyeglasses&gender=men' },
+            { label: 'Femme', href: '/shop?category=eyeglasses&gender=women' },
+            { label: 'Enfant', href: '/shop?category=eyeglasses&gender=kids' },
+            { label: 'Mixte', href: '/shop?category=eyeglasses&gender=unisex' },
           ],
         },
         {
           title: 'Par forme',
           links: [
-            { label: 'Carrée', href: '/products?shape=SQUARE' },
-            { label: 'Ronde', href: '/products?shape=ROUND' },
-            { label: 'Aviateur', href: '/products?shape=AVIATOR' },
-            { label: 'Cat-eye', href: '/products?shape=CAT_EYE' },
-            { label: 'Rectangle', href: '/products?shape=RECTANGLE' },
+            { label: 'Carrée', href: '/shop?category=eyeglasses&frameShape=square' },
+            { label: 'Ronde', href: '/shop?category=eyeglasses&frameShape=round' },
+            { label: 'Aviateur', href: '/shop?category=eyeglasses&frameShape=aviator' },
+            { label: 'Cat-eye', href: '/shop?category=eyeglasses&frameShape=cat-eye' },
+            { label: 'Rectangle', href: '/shop?category=eyeglasses&frameShape=rectangle' },
           ],
         },
         {
           title: 'Collections',
           links: [
-            { label: '✨ Nouveautés', href: '/products?new=true' },
-            { label: '🏆 Best-sellers', href: '/products?bestseller=true' },
-            { label: '💎 Luxe & Créateurs', href: '/products?category=LUXURY' },
-            { label: '⚽ Sport', href: '/products?category=SPORTS' },
+            { label: '✨ Nouveautés', href: '/shop?newArrival=true' },
+            { label: '🏆 Best-sellers', href: '/shop?featured=true' },
+            { label: '⚽ Sport', href: '/shop?category=sports' },
+            { label: '👶 Enfants', href: '/shop?category=kids' },
           ],
         },
       ],
@@ -56,32 +54,32 @@ const NAV_ITEMS = [
   },
   {
     label: 'Lunettes de soleil',
-    href: '/products?category=SUNGLASSES',
+    href: '/shop?category=sunglasses',
     mega: {
       columns: [
         {
           title: 'Par genre',
           links: [
-            { label: 'Homme', href: '/products?category=SUNGLASSES&gender=MEN' },
-            { label: 'Femme', href: '/products?category=SUNGLASSES&gender=WOMEN' },
-            { label: 'Enfant', href: '/products?category=SUNGLASSES&gender=KIDS' },
+            { label: 'Homme', href: '/shop?category=sunglasses&gender=men' },
+            { label: 'Femme', href: '/shop?category=sunglasses&gender=women' },
+            { label: 'Enfant', href: '/shop?category=sunglasses&gender=kids' },
           ],
         },
         {
           title: 'Par style',
           links: [
-            { label: 'Aviateur', href: '/products?category=SUNGLASSES&shape=AVIATOR' },
-            { label: 'Papillon', href: '/products?category=SUNGLASSES&shape=CAT_EYE' },
-            { label: 'Oversize', href: '/products?category=SUNGLASSES&style=oversize' },
-            { label: 'Polarisées', href: '/products?category=SUNGLASSES&lens=polarized' },
+            { label: 'Aviateur', href: '/shop?category=sunglasses&frameShape=aviator' },
+            { label: 'Papillon', href: '/shop?category=sunglasses&frameShape=cat-eye' },
+            { label: 'Carré', href: '/shop?category=sunglasses&frameShape=square' },
+            { label: 'Wayfarer', href: '/shop?category=sunglasses&frameShape=wayfarer' },
           ],
         },
         {
           title: 'Sélection',
           links: [
-            { label: '☀️ Été 2025', href: '/products?category=SUNGLASSES&collection=summer' },
-            { label: '🏆 Best-sellers', href: '/products?category=SUNGLASSES&bestseller=true' },
-            { label: '🆕 Nouveautés', href: '/products?category=SUNGLASSES&new=true' },
+            { label: '🏆 Best-sellers', href: '/shop?category=sunglasses&featured=true' },
+            { label: '🆕 Nouveautés', href: '/shop?category=sunglasses&newArrival=true' },
+            { label: '🔥 En promo', href: '/shop?category=sunglasses&onSale=true' },
           ],
         },
       ],
@@ -89,7 +87,7 @@ const NAV_ITEMS = [
         title: 'Protection UV400 garantie',
         subtitle: 'Certifiées CE • Livraison gratuite',
         cta: 'Voir la collection →',
-        href: '/products?category=SUNGLASSES',
+        href: '/shop?category=sunglasses',
         bg: 'bg-amber-50',
       },
     },
@@ -118,12 +116,16 @@ export default function Header() {
 
   // Search
   useEffect(() => {
-    if (searchQuery.trim()) {
-      const results = searchProducts(PRODUCTS, searchQuery).slice(0, 5);
-      setSearchResults(results);
-    } else {
+    if (searchQuery.trim().length < 2) {
       setSearchResults([]);
+      return;
     }
+    const controller = new AbortController();
+    fetch(`/api/products?q=${encodeURIComponent(searchQuery)}&pageSize=5`, { signal: controller.signal })
+      .then(r => r.json())
+      .then(d => { if (d.success) setSearchResults(d.data); })
+      .catch(() => {});
+    return () => controller.abort();
   }, [searchQuery]);
 
   // Focus input when search opens
