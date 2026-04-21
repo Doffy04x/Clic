@@ -1,128 +1,127 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PRODUCTS } from '@/lib/products';
-import { filterProducts, sortProducts, searchProducts } from '@/lib/utils';
-import type { ProductFilters, SortOption } from '@/lib/types';
+import { prisma } from '@/lib/prisma';
 
-// Rate limiting (simple in-memory)
-const rateLimit = new Map<string, { count: number; resetAt: number }>();
-
-function checkRateLimit(ip: string, limit = 60, windowMs = 60_000): boolean {
-  const now = Date.now();
-  const entry = rateLimit.get(ip);
-  if (!entry || now > entry.resetAt) {
-    rateLimit.set(ip, { count: 1, resetAt: now + windowMs });
-    return true;
-  }
-  if (entry.count >= limit) return false;
-  entry.count++;
-  return true;
+// Convert DB uppercase enums → frontend lowercase strings
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalize(p: any) {
+  return {
+    ...p,
+    category: p.category?.toLowerCase().replace('_', '-') ?? 'eyeglasses',
+    frameShape: p.frameShape?.toLowerCase().replace('_', '-') ?? 'square',
+    frameType: p.frameType?.toLowerCase().replace('_', '-') ?? 'full-rim',
+    material: p.material?.toLowerCase() ?? 'acetate',
+    gender: p.gender?.toLowerCase() ?? 'unisex',
+    faceShapeRecommendation: p.faceShapeRec ?? [],
+    images: p.images ?? [],
+    colors: p.colors ?? [],
+    lensOptions: p.lensOptions ?? [],
+    tags: p.tags ?? [],
+    specifications: p.specifications ?? {},
+    reviews: [],
+    rating: p.rating ?? 0,
+    reviewCount: p.reviewCount ?? 0,
+    tryOnImage: p.tryOnImage ?? null,
+    createdAt: p.createdAt ?? new Date().toISOString(),
+  };
 }
 
 export async function GET(request: NextRequest) {
-  const ip = request.headers.get('x-forwarded-for') ?? 'unknown';
-
-  if (!checkRateLimit(ip)) {
-    return NextResponse.json({ success: false, error: 'Too many requests' }, { status: 429 });
-  }
-
   const { searchParams } = new URL(request.url);
 
-  // Parse query parameters
   const page = parseInt(searchParams.get('page') ?? '1');
-  const pageSize = Math.min(parseInt(searchParams.get('pageSize') ?? '12'), 50);
-  const sort = (searchParams.get('sort') ?? 'featured') as SortOption;
+  const pageSize = Math.min(parseInt(searchParams.get('pageSize') ?? '12'), 200);
+  const sort = searchParams.get('sort') ?? 'featured';
   const query = searchParams.get('q') ?? '';
-  const id = searchParams.get('id');
   const slug = searchParams.get('slug');
+  const id = searchParams.get('id');
 
-  // Single product lookup
-  if (id) {
-    const product = PRODUCTS.find(p => p.id === id);
-    if (!product) return NextResponse.json({ success: false, error: 'Product not found' }, { status: 404 });
-    return NextResponse.json({ success: true, data: product });
-  }
-
+  // Single product by slug
   if (slug) {
-    const product = PRODUCTS.find(p => p.slug === slug);
+    const product = await prisma.product.findFirst({ where: { slug } });
     if (!product) return NextResponse.json({ success: false, error: 'Product not found' }, { status: 404 });
-    return NextResponse.json({ success: true, data: product });
+    return NextResponse.json({ success: true, data: normalize(product) });
   }
 
-  // Build filters from query params
-  const filters: ProductFilters = {};
+  // Single product by id
+  if (id) {
+    const product = await prisma.product.findUnique({ where: { id } });
+    if (!product) return NextResponse.json({ success: false, error: 'Product not found' }, { status: 404 });
+    return NextResponse.json({ success: true, data: normalize(product) });
+  }
+
+  // Build where clause
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: any = {};
 
   const category = searchParams.get('category');
-  if (category) filters.category = category.split(',') as never;
+  if (category) {
+    const cats = category.split(',').map(c => c.toUpperCase().replace('-', '_'));
+    where.category = { in: cats };
+  }
 
   const gender = searchParams.get('gender');
-  if (gender) filters.gender = gender.split(',') as never;
+  if (gender) {
+    where.gender = { in: gender.split(',').map(g => g.toUpperCase()) };
+  }
 
   const frameShape = searchParams.get('frameShape');
-  if (frameShape) filters.frameShape = frameShape.split(',') as never;
+  if (frameShape) {
+    where.frameShape = { in: frameShape.split(',').map(s => s.toUpperCase().replace('-', '_')) };
+  }
 
   const material = searchParams.get('material');
-  if (material) filters.material = material.split(',') as never;
+  if (material) {
+    where.material = { in: material.split(',').map(m => m.toUpperCase()) };
+  }
 
   const frameType = searchParams.get('frameType');
-  if (frameType) filters.frameType = frameType.split(',') as never;
+  if (frameType) {
+    where.frameType = { in: frameType.split(',').map(t => t.toUpperCase().replace('-', '_')) };
+  }
 
   const priceMin = searchParams.get('priceMin');
   const priceMax = searchParams.get('priceMax');
   if (priceMin || priceMax) {
-    filters.priceRange = [Number(priceMin ?? 0), Number(priceMax ?? 9999)];
+    where.price = {};
+    if (priceMin) where.price.gte = parseFloat(priceMin);
+    if (priceMax) where.price.lte = parseFloat(priceMax);
   }
 
-  const onSale = searchParams.get('onSale');
-  if (onSale === 'true') filters.onSale = true;
+  if (searchParams.get('onSale') === 'true') where.onSale = true;
+  if (searchParams.get('newArrival') === 'true') where.newArrival = true;
+  if (searchParams.get('featured') === 'true') where.featured = true;
+  if (searchParams.get('inStock') === 'true') where.stock = { gt: 0 };
 
-  const newArrival = searchParams.get('newArrival');
-  if (newArrival === 'true') filters.newArrival = true;
+  if (query) {
+    where.OR = [
+      { name: { contains: query, mode: 'insensitive' } },
+      { brand: { contains: query, mode: 'insensitive' } },
+      { sku: { contains: query, mode: 'insensitive' } },
+    ];
+  }
 
-  const featured = searchParams.get('featured');
-  if (featured === 'true') filters.featured = true;
+  // Sorting
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let orderBy: any = { createdAt: 'desc' };
+  if (sort === 'price-asc') orderBy = { price: 'asc' };
+  else if (sort === 'price-desc') orderBy = { price: 'desc' };
+  else if (sort === 'newest') orderBy = { createdAt: 'desc' };
+  else if (sort === 'featured') orderBy = [{ featured: 'desc' }, { bestSeller: 'desc' }, { createdAt: 'desc' }];
+  else if (sort === 'best-seller') orderBy = { bestSeller: 'desc' };
 
-  const inStock = searchParams.get('inStock');
-  if (inStock === 'true') filters.inStock = true;
-
-  // Apply search, filter, sort
-  let products = PRODUCTS;
-  if (query) products = searchProducts(products, query);
-  products = filterProducts(products, filters);
-  products = sortProducts(products, sort);
-
-  // Pagination
-  const total = products.length;
-  const totalPages = Math.ceil(total / pageSize);
-  const offset = (page - 1) * pageSize;
-  const paginated = products.slice(offset, offset + pageSize);
+  const [products, total] = await Promise.all([
+    prisma.product.findMany({
+      where,
+      orderBy,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.product.count({ where }),
+  ]);
 
   return NextResponse.json({
     success: true,
-    data: paginated,
-    pagination: { page, pageSize, total, totalPages },
+    data: products.map(normalize),
+    pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
   });
-}
-
-export async function POST(request: NextRequest) {
-  // Admin only — create new product
-  // In production: validate JWT, check admin role, validate with Zod, save to DB
-  const body = await request.json().catch(() => null);
-  if (!body) {
-    return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 });
-  }
-
-  // Mock: return created product with generated ID
-  const newProduct = {
-    ...body,
-    id: `co-${Date.now()}`,
-    slug: body.name?.toLowerCase().replace(/\s+/g, '-') ?? `product-${Date.now()}`,
-    createdAt: new Date().toISOString(),
-    rating: 0,
-    reviewCount: 0,
-    featured: false,
-    bestSeller: false,
-    newArrival: true,
-  };
-
-  return NextResponse.json({ success: true, data: newProduct }, { status: 201 });
 }

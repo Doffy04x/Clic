@@ -1,13 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { getProductBySlug, getRelatedProducts } from '@/lib/products';
 import { formatPrice, generateProductSchema } from '@/lib/utils';
 import { useCartStore, useWishlistStore, useCompareStore } from '@/lib/store';
-import type { ProductColor, LensOption } from '@/lib/types';
+import type { Product, ProductColor, LensOption } from '@/lib/types';
 import ProductCard from '@/components/shop/ProductCard';
 import toast from 'react-hot-toast';
 import dynamic from 'next/dynamic';
@@ -24,38 +23,75 @@ const GlassesViewer3D = dynamic(() => import('@/components/product/GlassesViewer
 
 export default function ProductPage({ params }: { params: { slug: string } }) {
   const { slug } = params;
-  const product = getProductBySlug(slug);
 
-  if (!product) notFound();
+  const [product, setProduct] = useState<Product | null>(null);
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const relatedProducts = getRelatedProducts(product, 4);
-
-  const [selectedColor, setSelectedColor] = useState<ProductColor>(product.colors[0]);
-  const [selectedLens, setSelectedLens] = useState<LensOption>(product.lensOptions[0]);
+  const [selectedColor, setSelectedColor] = useState<ProductColor | null>(null);
+  const [selectedLens, setSelectedLens] = useState<LensOption | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
   const [activeTab, setActiveTab] = useState<'description' | 'specs' | 'reviews'>('description');
   const [viewMode, setViewMode] = useState<'photos' | '3d'>('photos');
   const [isAdding, setIsAdding] = useState(false);
+  const [notFoundState, setNotFoundState] = useState(false);
 
   const { addItem } = useCartStore();
   const { toggle, isWishlisted } = useWishlistStore();
   const { toggle: toggleCompare, productIds: compareIds } = useCompareStore();
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/products?slug=${encodeURIComponent(slug)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.data) {
+          const p: Product = data.data;
+          setProduct(p);
+          setSelectedColor(p.colors?.[0] ?? null);
+          setSelectedLens(p.lensOptions?.[0] ?? null);
+          // Fetch related products (same category)
+          return fetch(`/api/products?pageSize=4&category=${p.category}`)
+            .then(r2 => r2.json())
+            .then(d2 => {
+              if (d2.success) {
+                setRelatedProducts(d2.data.filter((rp: Product) => rp.id !== p.id).slice(0, 4));
+              }
+            });
+        } else {
+          setNotFoundState(true);
+        }
+      })
+      .catch(() => setNotFoundState(true))
+      .finally(() => setLoading(false));
+  }, [slug]);
+
+  if (loading) {
+    return (
+      <div className="pt-20 min-h-screen flex items-center justify-center">
+        <div className="w-10 h-10 border-2 border-black border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (notFoundState || !product) return notFound();
+
   const wishlisted = isWishlisted(product.id);
   const inCompare = compareIds.includes(product.id);
+  const totalPrice = (product.price + (selectedLens?.price ?? 0)) * quantity;
 
-  const totalPrice = (product.price + selectedLens.price) * quantity;
+  const discount = product.compareAtPrice
+    ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
+    : null;
 
   const handleAddToCart = () => {
+    if (!selectedColor || !selectedLens) return;
     setIsAdding(true);
     addItem(product, selectedColor, selectedLens, quantity);
     toast.success(`${product.name} ajouté au panier !`, { icon: '🛒' });
     setTimeout(() => setIsAdding(false), 1000);
   };
-
-  const discount = product.compareAtPrice
-    ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
-    : null;
 
   return (
     <>
@@ -118,7 +154,7 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
               {viewMode === '3d' ? (
                 <div className="bg-cream">
                   <GlassesViewer3D
-                    color={selectedColor}
+                    color={selectedColor ?? product.colors[0]}
                     frameShape={product.frameShape}
                     className="h-96 md:h-[500px]"
                   />
@@ -127,15 +163,19 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
                 <>
                   {/* Main Image */}
                   <div className="relative aspect-[4/3] bg-cream overflow-hidden mb-3 group">
-                    <motion.img
-                      key={activeImage}
-                      src={product.images[activeImage]}
-                      alt={`${product.name} - View ${activeImage + 1}`}
-                      className="w-full h-full object-cover"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ duration: 0.3 }}
-                    />
+                    {product.images[activeImage] ? (
+                      <motion.img
+                        key={activeImage}
+                        src={product.images[activeImage]}
+                        alt={`${product.name} - View ${activeImage + 1}`}
+                        className="w-full h-full object-cover"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.3 }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-300 text-6xl">👓</div>
+                    )}
 
                     {/* Badges */}
                     <div className="absolute top-4 left-4 flex flex-col gap-2">
@@ -159,19 +199,21 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
                   </div>
 
                   {/* Thumbnails */}
-                  <div className="flex gap-2">
-                    {product.images.map((img, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setActiveImage(i)}
-                        className={`w-20 h-16 overflow-hidden border-2 transition-all ${
-                          activeImage === i ? 'border-black' : 'border-transparent hover:border-gray-300'
-                        }`}
-                      >
-                        <img src={img} alt={`View ${i + 1}`} className="w-full h-full object-cover" />
-                      </button>
-                    ))}
-                  </div>
+                  {product.images.length > 1 && (
+                    <div className="flex gap-2">
+                      {product.images.map((img, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setActiveImage(i)}
+                          className={`w-20 h-16 overflow-hidden border-2 transition-all ${
+                            activeImage === i ? 'border-black' : 'border-transparent hover:border-gray-300'
+                          }`}
+                        >
+                          <img src={img} alt={`View ${i + 1}`} className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -213,108 +255,100 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
                     {formatPrice(product.compareAtPrice)}
                   </span>
                 )}
-                {selectedLens.price > 0 && (
+                {selectedLens && selectedLens.price > 0 && (
                   <span className="text-sm text-gray-500">+ {formatPrice(selectedLens.price)} verres</span>
                 )}
               </div>
 
               {/* Color Selection */}
-              <div className="mb-6">
-                <div className="flex items-center justify-between mb-3">
-                  <label className="label-field">
-                    Couleur de la monture
-                  </label>
-                  <span className="text-sm text-gray-600">{selectedColor.name}</span>
-                </div>
-                <div className="flex gap-2.5 flex-wrap">
-                  {product.colors.map((color) => (
-                    <button
-                      key={color.name}
-                      onClick={() => setSelectedColor(color)}
-                      title={color.name}
-                      className={`w-8 h-8 rounded-full border-2 transition-all duration-150 ${
-                        selectedColor.name === color.name
-                          ? 'border-black scale-110 shadow-md'
-                          : 'border-gray-200 hover:border-gray-400 hover:scale-105'
-                      }`}
-                      style={{ background: color.hex }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* Lens Options — sélecteur premium */}
-              <div className="mb-6">
-                <div className="flex items-center justify-between mb-3">
-                  <label className="label-field">Type de verres</label>
-                  <span className="text-xs text-gold-600 font-medium">
-                    {selectedLens.price === 0
-                      ? '✓ Inclus dans le prix'
-                      : `+${formatPrice(selectedLens.price)} ajoutés`}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {product.lensOptions.map((lens) => {
-                    const isActive = selectedLens.id === lens.id;
-                    return (
+              {product.colors.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="label-field">Couleur de la monture</label>
+                    <span className="text-sm text-gray-600">{selectedColor?.name}</span>
+                  </div>
+                  <div className="flex gap-2.5 flex-wrap">
+                    {product.colors.map((color) => (
                       <button
-                        key={lens.id}
-                        onClick={() => setSelectedLens(lens)}
-                        className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200 ${
-                          isActive
-                            ? 'border-gold-500 bg-gold-50 shadow-sm'
-                            : 'border-gray-100 bg-white hover:border-gold-300'
+                        key={color.name}
+                        onClick={() => setSelectedColor(color)}
+                        title={color.name}
+                        className={`w-8 h-8 rounded-full border-2 transition-all duration-150 ${
+                          selectedColor?.name === color.name
+                            ? 'border-black scale-110 shadow-md'
+                            : 'border-gray-200 hover:border-gray-400 hover:scale-105'
                         }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          {/* Radio indicator */}
-                          <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-                            isActive ? 'border-gold-500' : 'border-gray-300'
-                          }`}>
-                            {isActive && (
-                              <div className="w-2 h-2 rounded-full bg-gold-500" />
-                            )}
-                          </div>
+                        style={{ background: color.hex }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
 
-                          {/* Content */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className={`font-semibold text-sm ${isActive ? 'text-dark' : 'text-gray-800'}`}>
-                                {lens.name}
-                              </p>
-                              {lens.price === 0 && (
-                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                                  Inclus
-                                </span>
+              {/* Lens Options */}
+              {product.lensOptions.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="label-field">Type de verres</label>
+                    <span className="text-xs text-gold-600 font-medium">
+                      {selectedLens?.price === 0
+                        ? '✓ Inclus dans le prix'
+                        : `+${formatPrice(selectedLens?.price ?? 0)} ajoutés`}
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {product.lensOptions.map((lens) => {
+                      const isActive = selectedLens?.id === lens.id;
+                      return (
+                        <button
+                          key={lens.id}
+                          onClick={() => setSelectedLens(lens)}
+                          className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200 ${
+                            isActive
+                              ? 'border-gold-500 bg-gold-50 shadow-sm'
+                              : 'border-gray-100 bg-white hover:border-gold-300'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                              isActive ? 'border-gold-500' : 'border-gray-300'
+                            }`}>
+                              {isActive && <div className="w-2 h-2 rounded-full bg-gold-500" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className={`font-semibold text-sm ${isActive ? 'text-dark' : 'text-gray-800'}`}>
+                                  {lens.name}
+                                </p>
+                                {lens.price === 0 && (
+                                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                                    Inclus
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500 mt-0.5">{lens.description}</p>
+                              {lens.features && lens.features.length > 0 && isActive && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {lens.features.slice(0, 3).map((f: string) => (
+                                    <span key={f} className="text-xs bg-dark/5 text-gray-600 px-2 py-0.5 rounded-full">
+                                      {f}
+                                    </span>
+                                  ))}
+                                </div>
                               )}
                             </div>
-                            <p className="text-xs text-gray-500 mt-0.5">{lens.description}</p>
-
-                            {/* Features chips */}
-                            {lens.features && lens.features.length > 0 && isActive && (
-                              <div className="flex flex-wrap gap-1 mt-2">
-                                {lens.features.slice(0, 3).map((f: string) => (
-                                  <span key={f}
-                                    className="text-xs bg-dark/5 text-gray-600 px-2 py-0.5 rounded-full">
-                                    {f}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
+                            <div className="text-right flex-shrink-0">
+                              <span className={`text-sm font-bold ${isActive ? 'text-gold-600' : 'text-gray-700'}`}>
+                                {lens.price === 0 ? '—' : `+${formatPrice(lens.price)}`}
+                              </span>
+                            </div>
                           </div>
-
-                          {/* Price */}
-                          <div className="text-right flex-shrink-0">
-                            <span className={`text-sm font-bold ${isActive ? 'text-gold-600' : 'text-gray-700'}`}>
-                              {lens.price === 0 ? '—' : `+${formatPrice(lens.price)}`}
-                            </span>
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Quantity */}
               <div className="mb-6">
@@ -414,19 +448,21 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
               </div>
 
               {/* Face shape recommendation */}
-              <div className="mt-4 p-4 bg-cream">
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-600 mb-2">
-                  Recommandé pour les visages :
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {product.faceShapeRecommendation.map((shape) => (
-                    <span key={shape}
-                      className="px-2.5 py-1 bg-white text-xs font-medium capitalize border border-gray-200">
-                      {shape}
-                    </span>
-                  ))}
+              {product.faceShapeRecommendation.length > 0 && (
+                <div className="mt-4 p-4 bg-cream">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-600 mb-2">
+                    Recommandé pour les visages :
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {product.faceShapeRecommendation.map((shape) => (
+                      <span key={shape}
+                        className="px-2.5 py-1 bg-white text-xs font-medium capitalize border border-gray-200">
+                        {shape}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -451,7 +487,7 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
             {activeTab === 'description' && (
               <div className="prose prose-gray max-w-3xl">
                 <p className="text-gray-700 leading-relaxed text-base">{product.description}</p>
-                {selectedLens.features && (
+                {selectedLens?.features && (
                   <div className="mt-6">
                     <h4 className="font-semibold mb-3">Caractéristiques des verres ({selectedLens.name})</h4>
                     <ul className="space-y-2">
@@ -473,7 +509,7 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
                   {Object.entries(product.specifications).map(([key, value]) => (
                     <div key={key} className="flex justify-between py-3">
                       <span className="text-sm text-gray-500">{key}</span>
-                      <span className="text-sm font-medium text-black">{value}</span>
+                      <span className="text-sm font-medium text-black">{String(value)}</span>
                     </div>
                   ))}
                   <div className="flex justify-between py-3">

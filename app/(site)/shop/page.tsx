@@ -3,9 +3,8 @@
 import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PRODUCTS } from '@/lib/products';
 import { filterProducts, sortProducts, searchProducts } from '@/lib/utils';
-import type { ProductFilters, SortOption } from '@/lib/types';
+import type { Product, ProductFilters, SortOption } from '@/lib/types';
 import ProductCard from '@/components/shop/ProductCard';
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
@@ -27,12 +26,22 @@ const FILTER_OPTIONS = {
 
 function ShopContent() {
   const searchParams = useSearchParams();
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
   const [filters, setFilters] = useState<ProductFilters>({});
   const [sort, setSort] = useState<SortOption>('featured');
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 500]);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Load all products from DB via API
+  useEffect(() => {
+    fetch('/api/products?pageSize=200')
+      .then(r => r.json())
+      .then(data => { if (data.success) setAllProducts(data.data); })
+      .finally(() => setProductsLoading(false));
+  }, []);
 
   // Initialize from URL params
   useEffect(() => {
@@ -53,12 +62,12 @@ function ShopContent() {
   }, [searchParams]);
 
   const filteredProducts = useMemo(() => {
-    let result = PRODUCTS;
+    let result = allProducts;
     if (searchQuery) result = searchProducts(result, searchQuery);
     result = filterProducts(result, { ...filters, priceRange });
     result = sortProducts(result, sort);
     return result;
-  }, [filters, sort, priceRange, searchQuery]);
+  }, [allProducts, filters, sort, priceRange, searchQuery]);
 
   const updateFilter = <K extends keyof ProductFilters>(key: K, value: ProductFilters[K]) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -270,7 +279,11 @@ function ShopContent() {
 
           {/* Products Grid */}
           <div className="flex-1">
-            {filteredProducts.length === 0 ? (
+            {productsLoading ? (
+              <div className="flex justify-center items-center py-32">
+                <div className="w-10 h-10 border-2 border-black border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : filteredProducts.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-24 text-center">
                 <div className="w-16 h-16 bg-gray-100 flex items-center justify-center mb-4">
                   <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

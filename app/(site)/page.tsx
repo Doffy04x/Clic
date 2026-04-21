@@ -1,11 +1,11 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion, useInView } from 'framer-motion';
-import { getFeaturedProducts, getBestSellers } from '@/lib/products';
 import { formatPrice } from '@/lib/utils';
+import type { Product } from '@/lib/types';
 import ProductCard from '@/components/shop/ProductCard';
 import { TrustBanner } from '@/components/home/TrustBanner';
 import { SocialMission } from '@/components/home/SocialMission';
@@ -79,8 +79,17 @@ function AnimatedSection({ children, className = '' }: { children: React.ReactNo
 }
 
 export default function HomePage() {
-  const featuredProducts = getFeaturedProducts().slice(0, 4);
-  const bestSellers = getBestSellers().slice(0, 4);
+  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
+  const [bestSellers, setBestSellers] = useState<Product[]>([]);
+
+  useEffect(() => {
+    fetch('/api/products?featured=true&pageSize=4')
+      .then(r => r.json())
+      .then(d => { if (d.success) setFeaturedProducts(d.data); });
+    fetch('/api/products?pageSize=4&sort=best-seller')
+      .then(r => r.json())
+      .then(d => { if (d.success) setBestSellers(d.data); });
+  }, []);
 
   return (
     <>
