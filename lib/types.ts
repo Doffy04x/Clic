@@ -80,6 +80,22 @@ export interface Product {
   createdAt: string;
 }
 
+// ─── Prescription Types ───────────────────────────────────────────────────────
+
+export interface EyePrescription {
+  sph: string;
+  cyl: string;
+  axis: string;
+}
+
+export interface Prescription {
+  method: 'manual' | 'upload' | 'email-later';
+  OD?: EyePrescription; // Right eye
+  OS?: EyePrescription; // Left eye
+  fileUrl?: string;     // Uploaded prescription file URL
+  notes?: string;
+}
+
 // ─── Cart Types ───────────────────────────────────────────────────────────────
 
 export interface CartItem {
@@ -89,6 +105,7 @@ export interface CartItem {
   selectedColor: ProductColor;
   selectedLens: LensOption;
   price: number;
+  prescription?: Prescription;
 }
 
 export interface Cart {

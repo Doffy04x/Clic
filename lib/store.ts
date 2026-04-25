@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { CartItem, Product, ProductColor, LensOption } from './types';
+import type { CartItem, Product, ProductColor, LensOption, Prescription } from './types';
 
 // ─── Cart Store ───────────────────────────────────────────────────────────────
 
@@ -15,7 +15,8 @@ interface CartStore {
     product: Product,
     color: ProductColor,
     lens: LensOption,
-    quantity?: number
+    quantity?: number,
+    prescription?: Prescription
   ) => void;
   removeItem: (itemId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
@@ -35,12 +36,12 @@ export const useCartStore = create<CartStore>()(
       items: [],
       isOpen: false,
 
-      addItem: (product, color, lens, quantity = 1) => {
+      addItem: (product, color, lens, quantity = 1, prescription) => {
         set((state) => {
           const existingId = `${product.id}-${color.name}-${lens.id}`;
           const existing = state.items.find((i) => i.id === existingId);
 
-          if (existing) {
+          if (existing && !prescription) {
             return {
               items: state.items.map((item) =>
                 item.id === existingId
@@ -51,13 +52,19 @@ export const useCartStore = create<CartStore>()(
             };
           }
 
+          // Use unique ID per prescription so same product can appear multiple times with different Rx
+          const itemId = prescription
+            ? `${existingId}-${Date.now()}`
+            : existingId;
+
           const newItem: CartItem = {
-            id: existingId,
+            id: itemId,
             product,
             quantity,
             selectedColor: color,
             selectedLens: lens,
             price: product.price + lens.price,
+            prescription,
           };
 
           return { items: [...state.items, newItem], isOpen: true };

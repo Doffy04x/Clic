@@ -6,8 +6,9 @@ import { notFound } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { formatPrice, generateProductSchema } from '@/lib/utils';
 import { useCartStore, useWishlistStore, useCompareStore } from '@/lib/store';
-import type { Product, ProductColor, LensOption } from '@/lib/types';
+import type { Product, ProductColor, LensOption, Prescription } from '@/lib/types';
 import ProductCard from '@/components/shop/ProductCard';
+import PrescriptionModal from '@/components/shop/PrescriptionModal';
 import toast from 'react-hot-toast';
 import dynamic from 'next/dynamic';
 
@@ -35,6 +36,7 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
   const [activeTab, setActiveTab] = useState<'description' | 'specs' | 'reviews'>('description');
   const [viewMode, setViewMode] = useState<'photos' | '3d'>('photos');
   const [isAdding, setIsAdding] = useState(false);
+  const [showPrescription, setShowPrescription] = useState(false);
   const [notFoundState, setNotFoundState] = useState(false);
 
   const { addItem } = useCartStore();
@@ -85,10 +87,26 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
     ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
     : null;
 
+  const needsPrescription = product.category === 'eyeglasses' || product.category === 'kids';
+
   const handleAddToCart = () => {
     if (!selectedColor || !selectedLens) return;
+    // Eyeglasses open the prescription modal first
+    if (needsPrescription) {
+      setShowPrescription(true);
+      return;
+    }
     setIsAdding(true);
     addItem(product, selectedColor, selectedLens, quantity);
+    toast.success(`${product.name} ajouté au panier !`, { icon: '🛒' });
+    setTimeout(() => setIsAdding(false), 1000);
+  };
+
+  const handlePrescriptionConfirm = (lens: LensOption, prescription: Prescription) => {
+    if (!selectedColor) return;
+    setShowPrescription(false);
+    setIsAdding(true);
+    addItem(product, selectedColor, lens, quantity, prescription);
     toast.success(`${product.name} ajouté au panier !`, { icon: '🛒' });
     setTimeout(() => setIsAdding(false), 1000);
   };
@@ -389,6 +407,8 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
                     </span>
                   ) : product.stock === 0 ? (
                     'Rupture de stock'
+                  ) : needsPrescription ? (
+                    `Choisir les verres & acheter — ${formatPrice(totalPrice)}`
                   ) : (
                     `Ajouter au panier — ${formatPrice(totalPrice)}`
                   )}
@@ -556,6 +576,16 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
           )}
         </div>
       </div>
+
+      {/* Prescription Modal */}
+      <PrescriptionModal
+        isOpen={showPrescription}
+        onClose={() => setShowPrescription(false)}
+        onConfirm={handlePrescriptionConfirm}
+        lensOptions={product.lensOptions}
+        productName={product.name}
+        needsPrescription={needsPrescription}
+      />
     </>
   );
 }

@@ -96,6 +96,26 @@ export default function CartDrawer() {
                               <span className="text-xs text-gray-300">·</span>
                               <span className="text-xs text-gray-500">{item.selectedLens.name}</span>
                             </div>
+                            {/* Prescription badge */}
+                            {item.prescription && (
+                              <div className="mt-1">
+                                {item.prescription.method === 'manual' && (
+                                  <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
+                                    📋 Ordonnance saisie
+                                  </span>
+                                )}
+                                {item.prescription.method === 'upload' && (
+                                  <span className="text-[10px] bg-green-50 text-green-600 px-2 py-0.5 rounded-full">
+                                    📄 Ordonnance uploadée
+                                  </span>
+                                )}
+                                {item.prescription.method === 'email-later' && (
+                                  <span className="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full">
+                                    ✉️ Ordonnance par e-mail
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                           <button
                             onClick={() => removeItem(item.id)}
