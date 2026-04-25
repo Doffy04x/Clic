@@ -81,7 +81,7 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
 
   const wishlisted = isWishlisted(product.id);
   const inCompare = compareIds.includes(product.id);
-  const totalPrice = (product.price + (selectedLens?.price ?? 0)) * quantity;
+  const totalPrice = product.price * quantity;
 
   const discount = product.compareAtPrice
     ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
@@ -90,14 +90,16 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
   const needsPrescription = product.category === 'eyeglasses' || product.category === 'kids';
 
   const handleAddToCart = () => {
-    if (!selectedColor || !selectedLens) return;
-    // Eyeglasses open the prescription modal first
+    if (!selectedColor) return;
+    // Eyeglasses/kids: open prescription + lens modal
     if (needsPrescription) {
       setShowPrescription(true);
       return;
     }
+    // Sunglasses/sports: add directly with first lens option or empty
     setIsAdding(true);
-    addItem(product, selectedColor, selectedLens, quantity);
+    const lens = selectedLens ?? { id: 'none', name: 'Standard', description: '', price: 0, features: [] };
+    addItem(product, selectedColor, lens, quantity);
     toast.success(`${product.name} ajouté au panier !`, { icon: '🛒' });
     setTimeout(() => setIsAdding(false), 1000);
   };
@@ -273,8 +275,8 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
                     {formatPrice(product.compareAtPrice)}
                   </span>
                 )}
-                {selectedLens && selectedLens.price > 0 && (
-                  <span className="text-sm text-gray-500">+ {formatPrice(selectedLens.price)} verres</span>
+                {needsPrescription && (
+                  <span className="text-xs text-gray-400">+ verres selon ordonnance</span>
                 )}
               </div>
 
@@ -299,71 +301,6 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
                         style={{ background: color.hex }}
                       />
                     ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Lens Options */}
-              {product.lensOptions.length > 0 && (
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <label className="label-field">Type de verres</label>
-                    <span className="text-xs text-gold-600 font-medium">
-                      {selectedLens?.price === 0
-                        ? '✓ Inclus dans le prix'
-                        : `+${formatPrice(selectedLens?.price ?? 0)} ajoutés`}
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    {product.lensOptions.map((lens) => {
-                      const isActive = selectedLens?.id === lens.id;
-                      return (
-                        <button
-                          key={lens.id}
-                          onClick={() => setSelectedLens(lens)}
-                          className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200 ${
-                            isActive
-                              ? 'border-gold-500 bg-gold-50 shadow-sm'
-                              : 'border-gray-100 bg-white hover:border-gold-300'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-                              isActive ? 'border-gold-500' : 'border-gray-300'
-                            }`}>
-                              {isActive && <div className="w-2 h-2 rounded-full bg-gold-500" />}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <p className={`font-semibold text-sm ${isActive ? 'text-dark' : 'text-gray-800'}`}>
-                                  {lens.name}
-                                </p>
-                                {lens.price === 0 && (
-                                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                                    Inclus
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-xs text-gray-500 mt-0.5">{lens.description}</p>
-                              {lens.features && lens.features.length > 0 && isActive && (
-                                <div className="flex flex-wrap gap-1 mt-2">
-                                  {lens.features.slice(0, 3).map((f: string) => (
-                                    <span key={f} className="text-xs bg-dark/5 text-gray-600 px-2 py-0.5 rounded-full">
-                                      {f}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                            <div className="text-right flex-shrink-0">
-                              <span className={`text-sm font-bold ${isActive ? 'text-gold-600' : 'text-gray-700'}`}>
-                                {lens.price === 0 ? '—' : `+${formatPrice(lens.price)}`}
-                              </span>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
                   </div>
                 </div>
               )}
@@ -507,17 +444,10 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
             {activeTab === 'description' && (
               <div className="prose prose-gray max-w-3xl">
                 <p className="text-gray-700 leading-relaxed text-base">{product.description}</p>
-                {selectedLens?.features && (
-                  <div className="mt-6">
-                    <h4 className="font-semibold mb-3">Caractéristiques des verres ({selectedLens.name})</h4>
-                    <ul className="space-y-2">
-                      {selectedLens.features.map((f) => (
-                        <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
-                          <span className="w-1.5 h-1.5 bg-gold-500 rounded-full flex-shrink-0" />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
+                {needsPrescription && (
+                  <div className="mt-6 bg-blue-50 border border-blue-100 rounded-xl p-4">
+                    <p className="text-sm text-blue-800 font-medium">👓 Options de verres disponibles</p>
+                    <p className="text-sm text-blue-700 mt-1">Cliquez sur &quot;Choisir les verres &amp; acheter&quot; pour sélectionner vos verres et ajouter votre ordonnance.</p>
                   </div>
                 )}
               </div>
@@ -582,9 +512,8 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
         isOpen={showPrescription}
         onClose={() => setShowPrescription(false)}
         onConfirm={handlePrescriptionConfirm}
-        lensOptions={product.lensOptions}
+        assignedLensIds={(product.lensOptions ?? []).map((l: LensOption) => l.id)}
         productName={product.name}
-        needsPrescription={needsPrescription}
       />
     </>
   );

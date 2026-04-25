@@ -4,12 +4,10 @@ import { PRODUCTS } from './products';
 // ─── Formatting ───────────────────────────────────────────────────────────────
 
 export function formatPrice(amount: number): string {
-  // Convert internal prices (stored as EUR-equivalent) × 10 to Moroccan Dirham
-  const dh = Math.round(amount * 10);
   return new Intl.NumberFormat('fr-MA', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(dh) + ' DH';
+  }).format(Math.round(amount)) + ' DH';
 }
 
 export function formatDate(dateString: string): string {
