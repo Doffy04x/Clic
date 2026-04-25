@@ -6,7 +6,18 @@ import { formatPrice } from '@/lib/utils';
 import type { Product } from '@/lib/types';
 import toast from 'react-hot-toast';
 
-type AdminTab = 'dashboard' | 'products' | 'orders' | 'customers' | 'coupons' | 'appointments' | 'newsletter' | 'analytics';
+type AdminTab = 'dashboard' | 'products' | 'orders' | 'customers' | 'coupons' | 'appointments' | 'newsletter' | 'analytics' | 'lenses';
+
+interface LensTemplate {
+  id: string;
+  name: string;
+  category: string;
+  description: string | null;
+  price: number;
+  features: string[];
+  sortOrder: number;
+  active: boolean;
+}
 
 /* ─── Mock Data ─────────────────────────────────────────────────────────────── */
 
@@ -97,6 +108,7 @@ interface EditProductForm {
   salePercentage: string;
   shortDescription: string;
   images: string[];
+  selectedLensIds: string[];
 }
 
 interface Coupon {
@@ -177,10 +189,34 @@ export default function AdminPage() {
   const [appointments, setAppointments] = useState(MOCK_APPOINTMENTS);
   const [subscribers, setSubscribers] = useState(MOCK_SUBSCRIBERS);
 
+  // Lens templates catalog
+  const [lensTemplates, setLensTemplates] = useState<LensTemplate[]>([]);
+  const [lensesLoading, setLensesLoading] = useState(false);
+  const [editingLens, setEditingLens] = useState<LensTemplate | null>(null);
+  const [showLensForm, setShowLensForm] = useState(false);
+  const [lensForm, setLensForm] = useState({
+    name: '', category: '', description: '', price: '0',
+    features: '', sortOrder: '0', active: true,
+  });
+
+  const loadLenses = () => {
+    setLensesLoading(true);
+    fetch('/api/admin/lenses')
+      .then(r => r.json())
+      .then(d => { if (d.success) setLensTemplates(d.data); })
+      .catch(() => toast.error('Erreur chargement verres'))
+      .finally(() => setLensesLoading(false));
+  };
+
+  useEffect(() => {
+    if (tab === 'lenses' || tab === 'products') loadLenses();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
   // Product Edit Modal
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editForm, setEditForm] = useState<EditProductForm>({
-    name: '', price: '', compareAtPrice: '', stock: '', onSale: false, salePercentage: '', shortDescription: '', images: [],
+    name: '', price: '', compareAtPrice: '', stock: '', onSale: false, salePercentage: '', shortDescription: '', images: [], selectedLensIds: [],
   });
   const [uploadingEditImage, setUploadingEditImage] = useState(false);
 
@@ -191,7 +227,7 @@ export default function AdminPage() {
     category: 'sunglasses', frameShape: 'square', frameType: 'full-rim',
     material: 'acetate', gender: 'unisex', sku: '', shortDescription: '',
     description: '', images: [] as string[], onSale: false, salePercentage: '',
-    featured: false, newArrival: true,
+    featured: false, newArrival: true, selectedLensIds: [] as string[],
   });
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -221,6 +257,10 @@ export default function AdminPage() {
   /* ── Product handlers ── */
   const openEditModal = (product: Product) => {
     setEditingProduct(product);
+    // Recover which lens template IDs are currently saved on this product
+    const savedIds = (product.lensOptions ?? [])
+      .map((l: any) => l.id)
+      .filter((id: string) => lensTemplates.some(t => t.id === id));
     setEditForm({
       name: product.name,
       price: String(product.price),
@@ -230,6 +270,7 @@ export default function AdminPage() {
       salePercentage: String(product.salePercentage || ''),
       shortDescription: product.shortDescription,
       images: product.images ?? [],
+      selectedLensIds: savedIds,
     });
   };
 
@@ -248,6 +289,9 @@ export default function AdminPage() {
           salePercentage: editForm.salePercentage || null,
           shortDescription: editForm.shortDescription,
           images: editForm.images,
+          lensOptions: lensTemplates
+            .filter(t => editForm.selectedLensIds.includes(t.id))
+            .map(t => ({ id: t.id, name: t.name, description: t.description ?? '', price: t.price, features: t.features })),
         }),
       });
       const data = await res.json();
@@ -358,6 +402,7 @@ export default function AdminPage() {
   const tabs: { id: AdminTab; label: string; icon: string }[] = [
     { id: 'dashboard', label: 'Tableau de bord', icon: '📊' },
     { id: 'products', label: 'Produits', icon: '👓' },
+    { id: 'lenses', label: 'Verres', icon: '🔍' },
     { id: 'orders', label: 'Commandes', icon: '📦' },
     { id: 'customers', label: 'Clients', icon: '👥' },
     { id: 'coupons', label: 'Promos', icon: '🏷️' },
@@ -600,6 +645,49 @@ export default function AdminPage() {
                     </div>
                     <p className="text-xs text-gray-400 mt-1">JPG, PNG ou WebP · Max 10 MB · La première photo est l&apos;image principale</p>
                   </div>
+
+                  {/* Lens options checkboxes */}
+                  {lensTemplates.length > 0 && (
+                    <div className="mt-5">
+                      <label className="label-field mb-2 block">Options de verres disponibles pour ce produit</label>
+                      <div className="border border-gray-200 rounded-lg p-4 max-h-60 overflow-y-auto space-y-4">
+                        {Object.entries(
+                          lensTemplates.filter(t => t.active).reduce((acc, t) => {
+                            if (!acc[t.category]) acc[t.category] = [];
+                            acc[t.category].push(t);
+                            return acc;
+                          }, {} as Record<string, LensTemplate[]>)
+                        ).map(([category, lenses]) => (
+                          <div key={category}>
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{category}</p>
+                            <div className="space-y-1.5">
+                              {lenses.map(lens => (
+                                <label key={lens.id} className="flex items-start gap-2.5 cursor-pointer hover:bg-gray-50 rounded p-1 -m-1">
+                                  <input
+                                    type="checkbox"
+                                    className="mt-0.5 flex-shrink-0"
+                                    checked={newProduct.selectedLensIds.includes(lens.id)}
+                                    onChange={e => setNewProduct(p => ({
+                                      ...p,
+                                      selectedLensIds: e.target.checked
+                                        ? [...p.selectedLensIds, lens.id]
+                                        : p.selectedLensIds.filter(id => id !== lens.id),
+                                    }))}
+                                  />
+                                  <span className="flex-1 text-sm">{lens.name}</span>
+                                  <span className="text-xs text-gray-500 flex-shrink-0">
+                                    {lens.price === 0 ? 'Inclus' : `+${lens.price} DH`}
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">Cochez les verres que le client pourra choisir pour ce produit</p>
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-4 mt-4">
                     <label className="flex items-center gap-2 text-sm cursor-pointer">
                       <input type="checkbox" checked={newProduct.newArrival} onChange={e => setNewProduct({...newProduct, newArrival: e.target.checked})} />
@@ -620,6 +708,9 @@ export default function AdminPage() {
                           body: JSON.stringify({
                             ...newProduct,
                             images: newProduct.images,
+                            lensOptions: lensTemplates
+                              .filter(t => newProduct.selectedLensIds.includes(t.id))
+                              .map(t => ({ id: t.id, name: t.name, description: t.description ?? '', price: t.price, features: t.features })),
                           }),
                         });
                         const data = await res.json();
@@ -627,7 +718,7 @@ export default function AdminPage() {
                           setProducts([mapDbProduct(data.data), ...products]);
                           toast.success(`✅ ${newProduct.name} ajouté !`);
                           setShowAddForm(false);
-                          setNewProduct({ name: '', brand: 'Wooby Eyewear', price: '', compareAtPrice: '', stock: '', category: 'sunglasses', frameShape: 'square', frameType: 'full-rim', material: 'acetate', gender: 'unisex', sku: '', shortDescription: '', description: '', images: [], onSale: false, salePercentage: '', featured: false, newArrival: true });
+                          setNewProduct({ name: '', brand: 'Wooby Eyewear', price: '', compareAtPrice: '', stock: '', category: 'sunglasses', frameShape: 'square', frameType: 'full-rim', material: 'acetate', gender: 'unisex', sku: '', shortDescription: '', description: '', images: [], onSale: false, salePercentage: '', featured: false, newArrival: true, selectedLensIds: [] });
                         } else {
                           toast.error('Erreur: ' + data.error);
                         }
@@ -1269,6 +1360,208 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* ── VERRES TAB ────────────────────────────────────────────────────── */}
+        {tab === 'lenses' && (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="font-display font-bold text-xl">Catalogue des verres</h2>
+                <p className="text-sm text-gray-500 mt-1">Gérez les options de verres disponibles à associer à vos produits</p>
+              </div>
+              <button
+                onClick={() => {
+                  setEditingLens(null);
+                  setLensForm({ name: '', category: '', description: '', price: '0', features: '', sortOrder: '0', active: true });
+                  setShowLensForm(true);
+                }}
+                className="btn-primary text-sm px-5 py-2"
+              >
+                + Ajouter un verre
+              </button>
+            </div>
+
+            {/* Add / Edit lens form */}
+            <AnimatePresence>
+              {showLensForm && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="bg-white border border-gray-200 p-6 mb-6 overflow-hidden rounded-lg"
+                >
+                  <h3 className="font-semibold mb-4">{editingLens ? 'Modifier le verre' : 'Nouveau verre'}</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <label className="label-field">Nom du verre *</label>
+                      <input type="text" value={lensForm.name} onChange={e => setLensForm(f => ({...f, name: e.target.value}))}
+                        className="input-field" placeholder="Ex: 1 — Amincis Antireflets bleue (1.50)" />
+                    </div>
+                    <div>
+                      <label className="label-field">Catégorie *</label>
+                      <input type="text" value={lensForm.category} onChange={e => setLensForm(f => ({...f, category: e.target.value}))}
+                        className="input-field" placeholder="Ex: Protection Lumière bleue + Correction"
+                        list="lens-categories" />
+                      <datalist id="lens-categories">
+                        {Array.from(new Set(lensTemplates.map(l => l.category))).map(c => <option key={c} value={c} />)}
+                      </datalist>
+                    </div>
+                    <div>
+                      <label className="label-field">Prix (DH) — 0 = Inclus</label>
+                      <input type="number" value={lensForm.price} min="0" onChange={e => setLensForm(f => ({...f, price: e.target.value}))}
+                        className="input-field" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="label-field">Description (affiché sous le nom)</label>
+                      <input type="text" value={lensForm.description} onChange={e => setLensForm(f => ({...f, description: e.target.value}))}
+                        className="input-field" placeholder="Ex: Verres amincis avec antireflets bleu — indice 1.50" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="label-field">Caractéristiques (une par ligne)</label>
+                      <textarea value={lensForm.features} onChange={e => setLensForm(f => ({...f, features: e.target.value}))}
+                        rows={3} className="input-field resize-none"
+                        placeholder={'Indice 1.50\nCorrection entre 0.25 et 1\nGARANTIE 1 AN'} />
+                    </div>
+                    <div>
+                      <label className="label-field">Ordre d&apos;affichage</label>
+                      <input type="number" value={lensForm.sortOrder} min="0" onChange={e => setLensForm(f => ({...f, sortOrder: e.target.value}))}
+                        className="input-field" />
+                    </div>
+                    <div className="flex items-center gap-3 pt-6">
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" checked={lensForm.active} onChange={e => setLensForm(f => ({...f, active: e.target.checked}))} />
+                        Actif (visible dans les produits)
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 mt-5">
+                    <button
+                      onClick={async () => {
+                        if (!lensForm.name.trim() || !lensForm.category.trim()) return toast.error('Nom et catégorie obligatoires');
+                        const payload = {
+                          name: lensForm.name.trim(),
+                          category: lensForm.category.trim(),
+                          description: lensForm.description.trim() || null,
+                          price: parseFloat(lensForm.price) || 0,
+                          features: lensForm.features.split('\n').map(s => s.trim()).filter(Boolean),
+                          sortOrder: parseInt(lensForm.sortOrder) || 0,
+                          active: lensForm.active,
+                        };
+                        try {
+                          const url = editingLens ? `/api/admin/lenses/${editingLens.id}` : '/api/admin/lenses';
+                          const method = editingLens ? 'PUT' : 'POST';
+                          const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                          const data = await res.json();
+                          if (data.success) {
+                            toast.success(editingLens ? 'Verre mis à jour !' : 'Verre ajouté !');
+                            setShowLensForm(false);
+                            setEditingLens(null);
+                            loadLenses();
+                          } else { toast.error(data.error ?? 'Erreur'); }
+                        } catch { toast.error('Erreur réseau'); }
+                      }}
+                      className="btn-primary text-sm px-6 py-2.5"
+                    >
+                      {editingLens ? 'Enregistrer' : 'Ajouter'}
+                    </button>
+                    <button onClick={() => { setShowLensForm(false); setEditingLens(null); }} className="btn-outline text-sm px-6 py-2.5">
+                      Annuler
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Lens catalog grouped by category */}
+            {lensesLoading ? (
+              <div className="flex justify-center py-16">
+                <div className="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : lensTemplates.length === 0 ? (
+              <div className="bg-white border border-gray-100 p-12 text-center">
+                <p className="text-4xl mb-3">🔍</p>
+                <p className="font-semibold text-lg mb-2">Aucun verre dans le catalogue</p>
+                <p className="text-gray-500 text-sm mb-4">Ajoutez des options de verres ou lancez le script de seed</p>
+                <code className="bg-gray-100 text-sm px-3 py-1 rounded">npx tsx prisma/seed-lenses.ts</code>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {Object.entries(
+                  lensTemplates.reduce((acc, t) => {
+                    if (!acc[t.category]) acc[t.category] = [];
+                    acc[t.category].push(t);
+                    return acc;
+                  }, {} as Record<string, LensTemplate[]>)
+                ).map(([category, lenses]) => (
+                  <div key={category} className="bg-white border border-gray-100 rounded-lg overflow-hidden">
+                    <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                      <h3 className="font-semibold text-sm">{category}</h3>
+                      <span className="text-xs text-gray-400">{lenses.length} option{lenses.length !== 1 ? 's' : ''}</span>
+                    </div>
+                    <div className="divide-y divide-gray-50">
+                      {lenses.map(lens => (
+                        <div key={lens.id} className={`flex items-start gap-4 px-5 py-4 ${!lens.active ? 'opacity-50' : ''}`}>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-sm">{lens.name}</p>
+                              {!lens.active && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">Inactif</span>}
+                            </div>
+                            {lens.description && <p className="text-xs text-gray-500 mt-0.5">{lens.description}</p>}
+                            {lens.features.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                {lens.features.map((f, i) => (
+                                  <span key={i} className="text-[11px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{f}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            <span className="font-bold text-sm">
+                              {lens.price === 0 ? <span className="text-green-600">Inclus</span> : `${lens.price} DH`}
+                            </span>
+                            <button
+                              onClick={() => {
+                                setEditingLens(lens);
+                                setLensForm({
+                                  name: lens.name,
+                                  category: lens.category,
+                                  description: lens.description ?? '',
+                                  price: String(lens.price),
+                                  features: lens.features.join('\n'),
+                                  sortOrder: String(lens.sortOrder),
+                                  active: lens.active,
+                                });
+                                setShowLensForm(true);
+                              }}
+                              className="text-xs border border-gray-200 px-3 py-1.5 hover:border-black transition-colors"
+                            >
+                              Modifier
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (!confirm(`Supprimer "${lens.name}" ?`)) return;
+                                try {
+                                  const res = await fetch(`/api/admin/lenses/${lens.id}`, { method: 'DELETE' });
+                                  if ((await res.json()).success) {
+                                    toast.success('Verre supprimé');
+                                    loadLenses();
+                                  }
+                                } catch { toast.error('Erreur réseau'); }
+                              }}
+                              className="text-xs border border-red-200 text-red-500 px-3 py-1.5 hover:bg-red-50 transition-colors"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
 
       {/* ── EDIT PRODUCT MODAL ─────────────────────────────────────────────── */}
@@ -1402,6 +1695,47 @@ export default function AdminPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Lens options in edit modal */}
+              {lensTemplates.length > 0 && (
+                <div className="mt-5">
+                  <label className="label-field mb-2 block">Options de verres disponibles</label>
+                  <div className="border border-gray-200 rounded-lg p-4 max-h-56 overflow-y-auto space-y-4">
+                    {Object.entries(
+                      lensTemplates.filter(t => t.active).reduce((acc, t) => {
+                        if (!acc[t.category]) acc[t.category] = [];
+                        acc[t.category].push(t);
+                        return acc;
+                      }, {} as Record<string, LensTemplate[]>)
+                    ).map(([category, lenses]) => (
+                      <div key={category}>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{category}</p>
+                        <div className="space-y-1.5">
+                          {lenses.map(lens => (
+                            <label key={lens.id} className="flex items-start gap-2.5 cursor-pointer hover:bg-gray-50 rounded p-1 -m-1">
+                              <input
+                                type="checkbox"
+                                className="mt-0.5 flex-shrink-0"
+                                checked={editForm.selectedLensIds.includes(lens.id)}
+                                onChange={e => setEditForm(f => ({
+                                  ...f,
+                                  selectedLensIds: e.target.checked
+                                    ? [...f.selectedLensIds, lens.id]
+                                    : f.selectedLensIds.filter(id => id !== lens.id),
+                                }))}
+                              />
+                              <span className="flex-1 text-sm">{lens.name}</span>
+                              <span className="text-xs text-gray-500 flex-shrink-0">
+                                {lens.price === 0 ? 'Inclus' : `+${lens.price} DH`}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-3 mt-6 pt-4 border-t border-gray-100">
                 <button onClick={saveEditProduct} className="btn-primary flex-1 py-3">

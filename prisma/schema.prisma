@@ -411,6 +411,24 @@ model CartItem {
   @@index([userId])
 }
 
+// ─── Catalogue de verres ──────────────────────────────────────────────────────
+
+model LensTemplate {
+  id          String   @id @default(cuid())
+  name        String                        // Display name shown to customer
+  category    String                        // Group header, e.g. "Protection Lumière bleue"
+  description String?  @db.Text            // Extra detail shown under the name
+  price       Float    @default(0)          // 0 = FREE/Inclus
+  features    String[]                      // Bullet points (index, guarantee, etc.)
+  sortOrder   Int      @default(0)          // Order within its category
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([active])
+}
+
 // ─── Historique des statuts de commande ───────────────────────────────────────
 
 model OrderStatusHistory {
