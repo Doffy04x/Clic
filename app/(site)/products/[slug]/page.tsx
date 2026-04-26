@@ -89,26 +89,27 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
 
   const needsPrescription = product.category === 'eyeglasses' || product.category === 'kids';
 
+  // Fallback color if none defined on product
+  const effectiveColor = selectedColor ?? { name: 'Standard', hex: '#000000' };
+
   const handleAddToCart = () => {
-    if (!selectedColor) return;
     // Eyeglasses/kids: open prescription + lens modal
     if (needsPrescription) {
       setShowPrescription(true);
       return;
     }
-    // Sunglasses/sports: add directly with first lens option or empty
+    // Sunglasses/sports: add directly
     setIsAdding(true);
     const lens = selectedLens ?? { id: 'none', name: 'Standard', description: '', price: 0, features: [] };
-    addItem(product, selectedColor, lens, quantity);
+    addItem(product, effectiveColor, lens, quantity);
     toast.success(`${product.name} ajouté au panier !`, { icon: '🛒' });
     setTimeout(() => setIsAdding(false), 1000);
   };
 
   const handlePrescriptionConfirm = (lens: LensOption, prescription: Prescription) => {
-    if (!selectedColor) return;
     setShowPrescription(false);
     setIsAdding(true);
-    addItem(product, selectedColor, lens, quantity, prescription);
+    addItem(product, effectiveColor, lens, quantity, prescription);
     toast.success(`${product.name} ajouté au panier !`, { icon: '🛒' });
     setTimeout(() => setIsAdding(false), 1000);
   };
